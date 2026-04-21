@@ -1,2 +1,1 @@
-# DASU Projekt
 # DASU-Projekt
