@@ -1,3 +1,8 @@
+<<<<<<< HEAD
 Hello World
 
+=======
+Hello World
+
+>>>>>>> b0295138b2afc91be8cd98eaa069de8e48a69a53
 richtige Mail
