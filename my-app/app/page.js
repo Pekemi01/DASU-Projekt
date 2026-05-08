@@ -1,22 +1,25 @@
-import LikeButton from "./like-button";
+import Link from 'next/link';
+import './globals.css'
 
 function Header({ title }) {
     return <h1>{title ? title : "Default title"}</h1>
 }
 
 export default function HomePage() {
-    const names = ['Ada Lovelace', 'Grace Hopper', 'Margaret Hamilton'];
 
     return (
         <div>
-            <Header title="Develop. Preview. Ship." />
-            <ul>
-                {names.map((name) => (
-                    <li key={name}>{name}</li>
-                ))}
-            </ul>
+            <Header title="DASU - Scoring Web App" />
 
-            <LikeButton/>
+            <text>
+                <li>Willkommen in der Web App des DASU-Teamprojekts.</li>
+                <li>Hier können die verschiedenen Maßnahmen am Lederhof gegeneinander abgewogen werden.</li>
+                <li>Um zu starten, klicken Sie bitte auf "Start".</li>
+            </text>
+
+            <Link href="/home">
+                <button className="startButton">Start</button>
+            </Link>
         </div>
     );
 }

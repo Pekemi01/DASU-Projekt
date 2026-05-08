@@ -1,0 +1,38 @@
+.startButton {
+  width: 200px;
+  height: 100px;
+  font-size: 30px;
+}
+
+.rankingButton {
+  width: 400px;
+  height: 400px;
+  font-size: 50px;
+  background-color: #2319f0;
+  color: aliceblue;
+  position: relative;
+  top: 50px;
+  left: 10px;
+}
+
+.measureButton {
+  width: 400px;
+  height: 400px;
+  font-size: 50px;
+  background-color: #2319f0;
+  color: aliceblue;
+  position: relative;
+  top: 50px;
+  left: 150px;
+}
+
+.criteriaButton {
+  width: 400px;
+  height: 400px;
+  font-size: 50px;
+  background-color: #2319f0;
+  color: aliceblue;
+  position: relative;
+  top: 50px;
+  left: 290px;
+}
