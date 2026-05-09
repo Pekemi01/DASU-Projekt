@@ -297,3 +297,4 @@ export async function searchMeasuresByName(measureName) {
     databaseClient.release();
   }
 }
+
