@@ -11,73 +11,103 @@ import { revalidatePath } from 'next/cache';
 /**
  * @description Erstellt eine Maßnahme inklusive Bewertung atomar innerhalb einer Transaktion.
  */
+/**
+ * @description Erstellt eine Maßnahme und stellt sicher, dass Standard-Kriterien existieren.
+ * Speichert anschließend die Bewertungen für alle definierten Kriterien.
+ */
 export async function createMeasureWithRating(formData) {
   const measureName = formData.get('name');
   const measureDescription = formData.get('beschreibung');
   const measureStatus = formData.get('status');
-  const criterionId = formData.get('id_kriterium');
-  const ratingValue = formData.get('bewertung');
 
-  if (!measureName || !criterionId || !ratingValue) {
-    return {
-      error: 'Pflichtfelder fehlen (Name, Kriterium, Bewertung).',
-    };
+  // Validierung: Nur der Name ist zwingend erforderlich
+  if (!measureName) {
+    return { error: 'Der Name der Maßnahme ist ein Pflichtfeld.' };
   }
+
+  // Liste der erforderlichen Kriterien
+  const requiredCriteria = [
+    'Sauberkeit',
+    'Nachhaltigkeit',
+    'Sicherheit',
+    'Kosten',
+    'Soziale Akzeptanz'
+  ];
 
   const databaseClient = await databasePool.connect();
 
   try {
     await databaseClient.query('BEGIN');
 
+    // 1. Kriterien sicherstellen (Upsert-Logik)
+    // Wir holen uns die IDs aller benötigten Kriterien
+    const criteriaIds = {};
+    for (const critName of requiredCriteria) {
+      const critRes = await databaseClient.query(
+          `INSERT INTO kriterien (name) 
+         VALUES ($1) 
+         ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name 
+         RETURNING id`,
+          [critName]
+      );
+      // Hinweis: Damit ON CONFLICT funktioniert, muss ein UNIQUE Constraint auf kriterien(name) liegen!
+      // Falls kein Constraint existiert, nutzen wir eine SELECT/INSERT Logik:
+      /*
+      let res = await databaseClient.query('SELECT id FROM kriterien WHERE name = $1', [critName]);
+      if (res.rows.length === 0) {
+        res = await databaseClient.query('INSERT INTO kriterien (name) VALUES ($1) RETURNING id', [critName]);
+      }
+      criteriaIds[critName] = res.rows[0].id;
+      */
+      criteriaIds[critName] = critRes.rows[0].id;
+    }
+
+    // 2. Maßnahme erstellen
     const insertMeasureQuery = `
       INSERT INTO massnahmen (name, beschreibung, status)
       VALUES ($1, $2, $3)
-      RETURNING id
+        RETURNING id
     `;
-
-    const insertedMeasureResult = await databaseClient.query(
-        insertMeasureQuery,
-        [measureName, measureDescription, measureStatus]
-    );
-
+    const insertedMeasureResult = await databaseClient.query(insertMeasureQuery, [
+      measureName,
+      measureDescription,
+      measureStatus,
+    ]);
     const createdMeasureId = insertedMeasureResult.rows[0].id;
 
+    // 3. Bewertungen speichern
     const insertRatingQuery = `
-      INSERT INTO massnahmen_bewertungen (
-        id_massnahme,
-        id_kriterium,
-        bewertung
-      )
+      INSERT INTO massnahmen_bewertungen (id_massnahme, id_kriterium, bewertung)
       VALUES ($1, $2, $3)
     `;
 
-    await databaseClient.query(insertRatingQuery, [
-      createdMeasureId,
-      criterionId,
-      ratingValue,
-    ]);
+    for (const critName of requiredCriteria) {
+      const rawValue = formData.get(critName); // Erwartet Input-Namen wie "Sauberkeit" im Formular
+
+      // Nur speichern, wenn ein Wert vorhanden ist (Float oder leer ist okay laut Anforderung)
+      if (rawValue !== null && rawValue !== '') {
+        const ratingValue = parseFloat(rawValue.replace(',', '.')); // Erlaubt Komma-Eingabe
+
+        await databaseClient.query(insertRatingQuery, [
+          createdMeasureId,
+          criteriaIds[critName],
+          isNaN(ratingValue) ? null : ratingValue,
+        ]);
+      }
+    }
 
     await databaseClient.query('COMMIT');
-
     revalidatePath('/massnahmen');
 
     return { success: true };
   } catch (databaseError) {
     await databaseClient.query('ROLLBACK');
-
-    console.error(
-        'Datenbankfehler beim Erstellen der Maßnahme:',
-        databaseError.message
-    );
-
-    return {
-      error: `Fehler beim Erstellen der Maßnahme: ${databaseError.message}`,
-    };
+    console.error('Fehler in createMeasureWithRating:', databaseError.message);
+    return { error: `Datenbankfehler: ${databaseError.message}` };
   } finally {
     databaseClient.release();
   }
 }
-
 /**
  * @description Löscht eine Maßnahme.
  * Die zugehörigen Bewertungen werden durch CASCADE DELETE automatisch entfernt.
