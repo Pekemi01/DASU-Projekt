@@ -1,95 +1,178 @@
 /**
  * @author Milenko
- * @description Server Actions für massnahmen_bewertungen (CRUD)
+ * @description Server Actions für Maßnahmen-Bewertungen (CRUD)
  */
+
 'use server';
 
 import databasePool from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 
 /**
- * Erstellt eine neue Bewertung für eine bestehende Maßnahme.
- * @param {number} measureId
- * @param {number} criterionId
- * @param {number} ratingValue
+ * @description Erstellt eine neue Bewertung für eine bestehende Maßnahme.
  */
-export async function createBewertung(measureId, criterionId, ratingValue) {
+export async function createRating(
+    measureId,
+    criterionId,
+    ratingValue
+) {
   try {
-    const result = await databasePool.query(
-        'INSERT INTO massnahmen_bewertungen (id_massnahme, id_kriterium, bewertung) VALUES ($1, $2, $3) RETURNING *',
-        [measureId, criterionId, ratingValue]
+    const insertRatingQuery = `
+      INSERT INTO massnahmen_bewertungen (
+        id_massnahme,
+        id_kriterium,
+        bewertung
+      )
+      VALUES ($1, $2, $3)
+      RETURNING *
+    `;
+
+    const queryResult = await databasePool.query(
+        insertRatingQuery,
+        [
+          measureId,
+          criterionId,
+          ratingValue,
+        ]
     );
-    revalidatePath('/massnahmen'); // Pfad anpassen, wo die Liste angezeigt wird
-    return { success: true, data: result.rows[0] };
-  } catch (error) {
-    console.error("DB-Fehler:", error.message);
-    return { error: "Bewertung konnte nicht erstellt werden." };
+
+    revalidatePath('/massnahmen');
+
+    return {
+      success: true,
+      data: queryResult.rows[0],
+    };
+  } catch (databaseError) {
+    console.error(
+        'Datenbankfehler beim Erstellen der Bewertung:',
+        databaseError.message
+    );
+
+    return {
+      error: 'Bewertung konnte nicht erstellt werden.',
+    };
   }
 }
 
 /**
- * Holt alle Bewertungen für eine bestimmte Maßnahme.
- * @param {number} measureId
+ * @description Holt alle Bewertungen für eine bestimmte Maßnahme.
  */
-export async function getBewertungenByMassnahme(measureId) {
+export async function getRatingsByMeasureId(measureId) {
   try {
+    const selectRatingsByMeasureQuery = `
+      SELECT
+        mb.*,
+        k.name AS criterion_name
+      FROM massnahmen_bewertungen mb
+      JOIN kriterien k
+        ON mb.id_kriterium = k.id
+      WHERE mb.id_massnahme = $1
+    `;
+
     const queryResult = await databasePool.query(
-        `SELECT mb.*, k.name as kriterien_name 
-       FROM massnahmen_bewertungen mb
-       JOIN kriterien k ON mb.id_kriterium = k.id
-       WHERE mb.id_massnahme = $1`,
+        selectRatingsByMeasureQuery,
         [measureId]
     );
+
     return queryResult.rows;
-  } catch (error) {
-    console.error("DB-Fehler:", error.message);
+  } catch (databaseError) {
+    console.error(
+        'Datenbankfehler beim Laden der Bewertungen:',
+        databaseError.message
+    );
+
     return [];
   }
 }
 
 /**
- * ÄNDERT die Bewertung für ein spezifisches Kriterium einer Maßnahme.
- * Beispiel: Maßnahme 1 bekommt für Kriterium 3 eine neue Note.
+ * @description Aktualisiert die Bewertung
+ * eines bestimmten Kriteriums einer Maßnahme.
  *
- * @param {number} measureId - ID der Maßnahme
- * @param {number} criterionId - ID des Kriteriums
- * @param {number} newRating - Der neue Wert (1-5)
+ * Beispiel:
+ * Maßnahme 1 erhält für Kriterium 3 eine neue Bewertung.
  */
-export async function updateBewertung(measureId, criterionId, newRating) {
+export async function updateRatingByMeasureAndCriterion(
+    measureId,
+    criterionId,
+    updatedRatingValue
+) {
   try {
-    const result = await databasePool.query(
-        `UPDATE massnahmen_bewertungen 
-       SET bewertung = $1 
-       WHERE id_massnahme = $2 AND id_kriterium = $3 
-       RETURNING *`,
-        [newRating, measureId, criterionId]
+    const updateRatingQuery = `
+      UPDATE massnahmen_bewertungen
+      SET bewertung = $1
+      WHERE id_massnahme = $2
+        AND id_kriterium = $3
+      RETURNING *
+    `;
+
+    const queryResult = await databasePool.query(
+        updateRatingQuery,
+        [
+          updatedRatingValue,
+          measureId,
+          criterionId,
+        ]
     );
 
-    if (result.rowCount === 0) {
-      return { error: "Bewertung nicht gefunden." };
+    if (queryResult.rowCount === 0) {
+      return {
+        error: 'Bewertung wurde nicht gefunden.',
+      };
     }
 
     revalidatePath('/massnahmen');
-    return { success: true, data: result.rows[0] };
-  } catch (error) {
-    console.error("DB-Fehler:", error.message);
-    return { error: "Update fehlgeschlagen." };
+
+    return {
+      success: true,
+      data: queryResult.rows[0],
+    };
+  } catch (databaseError) {
+    console.error(
+        'Datenbankfehler beim Aktualisieren der Bewertung:',
+        databaseError.message
+    );
+
+    return {
+      error: 'Aktualisierung der Bewertung fehlgeschlagen.',
+    };
   }
 }
 
 /**
- * Löscht eine spezifische Bewertung.
+ * @description Löscht eine bestimmte Bewertung
+ * anhand von Maßnahme und Kriterium.
  */
-export async function deleteBewertung(measureId, criterionId) {
+export async function deleteRatingByMeasureAndCriterion(
+    measureId,
+    criterionId
+) {
   try {
+    const deleteRatingQuery = `
+      DELETE FROM massnahmen_bewertungen
+      WHERE id_massnahme = $1
+        AND id_kriterium = $2
+    `;
+
     await databasePool.query(
-        'DELETE FROM massnahmen_bewertungen WHERE id_massnahme = $1 AND id_kriterium = $2',
-        [measureId, criterionId]
+        deleteRatingQuery,
+        [
+          measureId,
+          criterionId,
+        ]
     );
+
     revalidatePath('/massnahmen');
+
     return { success: true };
-  } catch (error) {
-    console.error("DB-Fehler:", error.message);
-    return { error: "Löschen fehlgeschlagen." };
+  } catch (databaseError) {
+    console.error(
+        'Datenbankfehler beim Löschen der Bewertung:',
+        databaseError.message
+    );
+
+    return {
+      error: 'Löschen der Bewertung fehlgeschlagen.',
+    };
   }
 }

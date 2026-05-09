@@ -1,6 +1,6 @@
 /**
- * @Author: Milenko Pekez
- * @Description: Aktionen zur Kommunikation und verwaltung der Datenbank.
+ * @author Milenko Pekez
+ * @description Aktionen zur Kommunikation und Verwaltung der Datenbank.
  */
 
 'use server';
@@ -8,78 +8,118 @@
 import databasePool from '@/lib/db';
 import { revalidatePath } from 'next/cache';
 
-
 /**
- * @description Erstellt eine Maßnahme und eine Bewertung atomar (Transaktion).
+ * @description Erstellt eine Maßnahme inklusive Bewertung atomar innerhalb einer Transaktion.
  */
-export async function createMassnahmeMitBewertung(formData) {
-  const name = formData.get('name');
-  const beschreibung = formData.get('beschreibung');
-  const status = formData.get('status');
-  const id_kriterium = formData.get('id_kriterium');
-  const bewertung = formData.get('bewertung');
+export async function createMeasureWithRating(formData) {
+  const measureName = formData.get('name');
+  const measureDescription = formData.get('beschreibung');
+  const measureStatus = formData.get('status');
+  const criterionId = formData.get('id_kriterium');
+  const ratingValue = formData.get('bewertung');
 
-  if (!name || !id_kriterium || !bewertung) {
-    return { error: "Pflichtfelder fehlen (Name, Kriterium, Bewertung)." };
+  if (!measureName || !criterionId || !ratingValue) {
+    return {
+      error: 'Pflichtfelder fehlen (Name, Kriterium, Bewertung).',
+    };
   }
 
-  const client = await databasePool.connect();
+  const databaseClient = await databasePool.connect();
+
   try {
-    await client.query('BEGIN');
+    await databaseClient.query('BEGIN');
 
-    // Korrektur: Komma gesetzt und Klammer bei RETURNING id entfernt
-    const massnahmenResult = await client.query(
-        'INSERT INTO massnahmen (name, beschreibung, status) VALUES ($1, $2, $3) RETURNING id',
-        [name, beschreibung, status]
+    const insertMeasureQuery = `
+      INSERT INTO massnahmen (name, beschreibung, status)
+      VALUES ($1, $2, $3)
+      RETURNING id
+    `;
+
+    const insertedMeasureResult = await databaseClient.query(
+        insertMeasureQuery,
+        [measureName, measureDescription, measureStatus]
     );
 
-    const massnahmenId = massnahmenResult.rows[0].id;
+    const createdMeasureId = insertedMeasureResult.rows[0].id;
 
-    await client.query(
-        'INSERT INTO massnahmen_bewertungen (id_massnahme, id_kriterium, bewertung) VALUES ($1, $2, $3)',
-        [massnahmenId, id_kriterium, bewertung]
-    );
+    const insertRatingQuery = `
+      INSERT INTO massnahmen_bewertungen (
+        id_massnahme,
+        id_kriterium,
+        bewertung
+      )
+      VALUES ($1, $2, $3)
+    `;
 
-    await client.query('COMMIT');
+    await databaseClient.query(insertRatingQuery, [
+      createdMeasureId,
+      criterionId,
+      ratingValue,
+    ]);
+
+    await databaseClient.query('COMMIT');
+
     revalidatePath('/massnahmen');
+
     return { success: true };
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error("DB-Fehler:", error.message);
-    return { error: "Fehler beim Erstellen: " + error.message };
+  } catch (databaseError) {
+    await databaseClient.query('ROLLBACK');
+
+    console.error(
+        'Datenbankfehler beim Erstellen der Maßnahme:',
+        databaseError.message
+    );
+
+    return {
+      error: `Fehler beim Erstellen der Maßnahme: ${databaseError.message}`,
+    };
   } finally {
-    client.release();
+    databaseClient.release();
   }
 }
 
 /**
- * @description Nutzt CASCADE DELETE der Datenbank aus.
+ * @description Löscht eine Maßnahme.
+ * Die zugehörigen Bewertungen werden durch CASCADE DELETE automatisch entfernt.
  */
-export async function deleteMassnahme(id) {
-  const client = await databasePool.connect();
+export async function deleteMeasureById(measureId) {
+  const databaseClient = await databasePool.connect();
+
   try {
-    await client.query('DELETE FROM massnahmen WHERE id = $1', [id]);
+    const deleteMeasureQuery = `
+      DELETE FROM massnahmen
+      WHERE id = $1
+    `;
+
+    await databaseClient.query(deleteMeasureQuery, [measureId]);
+
     revalidatePath('/massnahmen');
+
     return { success: true };
-  } catch (error) {
-    console.error("Lösch-Fehler:", error.message);
-    return { error: "Löschen fehlgeschlagen." };
+  } catch (databaseError) {
+    console.error(
+        'Fehler beim Löschen der Maßnahme:',
+        databaseError.message
+    );
+
+    return {
+      error: 'Löschen der Maßnahme fehlgeschlagen.',
+    };
   } finally {
-    client.release();
+    databaseClient.release();
   }
 }
 
 /**
-
- * @description Holt alle Maßnahmen, die bereits mindestens eine Bewertung haben,
- *              inklusive der Bewertungsdetails.
+ * @description Holt alle Maßnahmen inklusive ihrer Bewertungen.
+ * Es werden nur Maßnahmen geladen, die mindestens eine Bewertung besitzen.
  */
+export async function getAllMeasuresWithRatings() {
+  const databaseClient = await databasePool.connect();
 
-export async function getAllMassnahmenWithRatings() {
-  const client = await databasePool.connect();
   try {
-    const query = `
-      SELECT 
+    const selectMeasuresWithRatingsQuery = `
+      SELECT
         m.id AS massnahme_id,
         m.name AS massnahme_name,
         m.beschreibung,
@@ -88,120 +128,172 @@ export async function getAllMassnahmenWithRatings() {
         mb.bewertung,
         k.name AS kriterien_name
       FROM massnahmen m
-      INNER JOIN massnahmen_bewertungen mb ON m.id = mb.id_massnahme
-      INNER JOIN kriterien k ON mb.id_kriterium = k.id
+             INNER JOIN massnahmen_bewertungen mb
+                        ON m.id = mb.id_massnahme
+             INNER JOIN kriterien k
+                        ON mb.id_kriterium = k.id
       ORDER BY m.id DESC;
     `;
 
-    const result = await client.query(query);
+    const queryResult = await databaseClient.query(
+        selectMeasuresWithRatingsQuery
+    );
 
-    return result.rows;
+    return queryResult.rows;
+  } catch (databaseError) {
+    console.error(
+        'Datenbankfehler beim Laden der Bewertungen:',
+        databaseError.message
+    );
 
-  } catch (error) {
-    console.error("Datenbank-Fehler beim Laden der Bewertungen:", error.message);
     return [];
   } finally {
-    client.release();
+    databaseClient.release();
   }
 }
 
-
 /**
- * @description Update-Funktion mit Daten-Extraktion
+ * @description Aktualisiert die Stammdaten einer Maßnahme.
  */
-export async function updateMassnahme(id, formData) {
-  const name = formData.get('name');
-  const beschreibung = formData.get('beschreibung');
-  const status = formData.get('status');
+export async function updateMeasureById(measureId, formData) {
+  const measureName = formData.get('name');
+  const measureDescription = formData.get('beschreibung');
+  const measureStatus = formData.get('status');
 
-  const client = await databasePool.connect();
+  const databaseClient = await databasePool.connect();
+
   try {
-    const query = `UPDATE massnahmen SET name = $1, beschreibung = $2, status = $3 WHERE id = $4`;
-    await client.query(query, [name, beschreibung, status, id]);
+    const updateMeasureQuery = `
+      UPDATE massnahmen
+      SET
+        name = $1,
+        beschreibung = $2,
+        status = $3
+      WHERE id = $4
+    `;
+
+    await databaseClient.query(updateMeasureQuery, [
+      measureName,
+      measureDescription,
+      measureStatus,
+      measureId,
+    ]);
 
     revalidatePath('/massnahmen');
+
     return { success: true };
-  } catch (error) {
-    console.error("Update-Fehler:", error.message);
-    return { error: "Update fehlgeschlagen." };
+  } catch (databaseError) {
+    console.error(
+        'Fehler beim Aktualisieren der Maßnahme:',
+        databaseError.message
+    );
+
+    return {
+      error: 'Aktualisierung der Maßnahme fehlgeschlagen.',
+    };
   } finally {
-    client.release();
+    databaseClient.release();
   }
 }
 
 /**
- * @description Holt von der Maßnahme eine ID
+ * @description Lädt eine Maßnahme anhand ihrer ID inklusive aller Bewertungen.
  */
-export async function getMassnahmeById(id) {
-  const client = await databasePool.connect();
+export async function getMeasureById(measureId) {
+  const databaseClient = await databasePool.connect();
+
   try {
-    const query = `
+    const selectMeasureByIdQuery = `
       SELECT
         m.*,
         COALESCE(
             JSON_AGG(
                 JSON_BUILD_OBJECT(
-                    'kriterium_id', k.id,
-                    'kriterium_name', k.name,
-                    'bewertung', mb.bewertung
+                    'criterionId', k.id,
+                    'criterionName', k.name,
+                    'ratingValue', mb.bewertung
                 )
             ) FILTER (WHERE mb.id_kriterium IS NOT NULL),
             '[]'
-        ) AS bewertungen
+        ) AS ratings
       FROM massnahmen m
-             LEFT JOIN massnahmen_bewertungen mb ON m.id = mb.id_massnahme
-             LEFT JOIN kriterien k ON mb.id_kriterium = k.id
+             LEFT JOIN massnahmen_bewertungen mb
+                       ON m.id = mb.id_massnahme
+             LEFT JOIN kriterien k
+                       ON mb.id_kriterium = k.id
       WHERE m.id = $1
       GROUP BY m.id;
     `;
 
-    const result = await client.query(query, [id]);
+    const queryResult = await databaseClient.query(
+        selectMeasureByIdQuery,
+        [measureId]
+    );
 
-    if (result.rows.length === 0) return null;
+    if (queryResult.rows.length === 0) {
+      return null;
+    }
 
-    return result.rows[0];
-  } catch (error) {
-    console.error("Datenbank-Fehler beim Abrufen der Maßnahme:", error.message);
+    return queryResult.rows[0];
+  } catch (databaseError) {
+    console.error(
+        'Datenbankfehler beim Abrufen der Maßnahme:',
+        databaseError.message
+    );
+
     return null;
   } finally {
-    client.release();
+    databaseClient.release();
   }
 }
+
 /**
- * Sucht Maßnahmen anhand des Namens (Teilsuche) inkl. aller Bewertungen.
+ * @description Sucht Maßnahmen anhand des Namens (Teilsuche)
+ * inklusive aller Bewertungen.
  */
-export async function getMassnahmenByName(name) {
-  const client = await databasePool.connect();
+export async function searchMeasuresByName(measureName) {
+  const databaseClient = await databasePool.connect();
+
   try {
-    const query = `
-      SELECT 
-        m.*, 
+    const searchMeasuresQuery = `
+      SELECT
+        m.*,
         COALESCE(
-          JSON_AGG(
-            JSON_BUILD_OBJECT(
-              'kriterium_id', k.id,
-              'kriterium_name', k.name,
-              'bewertung', mb.bewertung
-            )
-          ) FILTER (WHERE mb.id_kriterium IS NOT NULL), 
-          '[]'
-        ) AS bewertungen
+            JSON_AGG(
+                JSON_BUILD_OBJECT(
+                    'criterionId', k.id,
+                    'criterionName', k.name,
+                    'ratingValue', mb.bewertung
+                )
+            ) FILTER (WHERE mb.id_kriterium IS NOT NULL),
+            '[]'
+        ) AS ratings
       FROM massnahmen m
-      LEFT JOIN massnahmen_bewertungen mb ON m.id = mb.id_massnahme
-      LEFT JOIN kriterien k ON mb.id_kriterium = k.id
+             LEFT JOIN massnahmen_bewertungen mb
+                       ON m.id = mb.id_massnahme
+             LEFT JOIN kriterien k
+                       ON mb.id_kriterium = k.id
       WHERE m.name ILIKE $1
       GROUP BY m.id
       ORDER BY m.name ASC;
     `;
 
-    // Das %-Zeichen vor und nach dem Namen erlaubt die Teilsuche
-    const result = await client.query(query, [`%${name}%`]);
+    const searchPattern = `%${measureName}%`;
 
-    return result.rows;
-  } catch (error) {
-    console.error("Fehler bei der Namenssuche:", error.message);
+    const queryResult = await databaseClient.query(
+        searchMeasuresQuery,
+        [searchPattern]
+    );
+
+    return queryResult.rows;
+  } catch (databaseError) {
+    console.error(
+        'Fehler bei der Suche nach Maßnahmen:',
+        databaseError.message
+    );
+
     return [];
   } finally {
-    client.release();
+    databaseClient.release();
   }
 }
