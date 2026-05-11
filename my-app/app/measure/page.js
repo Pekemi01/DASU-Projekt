@@ -1,9 +1,15 @@
+/**
+ * @author Milenko Pekez
+ * @description Seite zum Erstellen einer neuen Maßnahme inklusive Bewertungsformular.
+ */
+
 "use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createMeasureWithRating } from "@/lib/actions/massnahmen.js";
 
+// Liste der Sicherheitsfragen für die Sauberkeits-Checkliste
 const SICHERHEITSFRAGEN = [
     "Sind Schutzausrüstungen vorhanden?",
     "Wurden Mitarbeiter eingewiesen?",
@@ -15,6 +21,7 @@ const SICHERHEITSFRAGEN = [
     "Sind alle gesetzlichen Vorgaben eingehalten?",
 ];
 
+// Liste der Risiken für die Risikomatrix
 const RISIKEN = [
     "Stolpern / Stürzen",
     "Elektrische Gefährdung",
@@ -23,16 +30,28 @@ const RISIKEN = [
     "Psychische Belastung",
 ];
 
+/**
+ * @description Berechnet den Resilienzwert Rm einer Maßnahme.
+ * Formel: Rm = (Vnow - Vbase) / (Vtarget - Vbase)
+ */
 function berechneResilienz(vBase, vTarget, vNow) {
     if (vTarget === vBase) return 0;
     return (vNow - vBase) / (vTarget - vBase);
 }
 
+/**
+ * @description Berechnet den Effizienzwert Re einer Maßnahme.
+ * Formel: Re = ΔS / C — höher bedeutet effizienter (mehr Verbesserung pro €)
+ */
 function berechneEffizienz(kosten, deltaS) {
     if (kosten === 0) return 0;
     return deltaS / kosten;
 }
 
+/**
+ * @description Hauptkomponente der Maßnahmen-Seite.
+ * Verwaltet alle Formularfelder und leitet nach erfolgreichem Speichern zur Gewichtungsseite weiter.
+ */
 export default function MaßnahmePage() {
     const router = useRouter();
     const [name, setName] = useState("");
@@ -87,14 +106,24 @@ export default function MaßnahmePage() {
     const Re = berechneEffizienz(kostenN, deltaSN);
 
     // ── Helpers ───────────────────────────────────────────────
+
+    /**
+     * @description Schaltet den Zustand einer Sicherheits-Checkbox um.
+     */
     const toggleSicherheit = (i) =>
         setSicherheit((prev) => prev.map((v, idx) => (idx === i ? !v : v)));
 
+    /**
+     * @description Aktualisiert einen Wert (Wahrscheinlichkeit oder Effekt) in der Risikomatrix.
+     */
     const updateRisiko = (i, field, value) =>
         setRisikoMatrix((prev) =>
             prev.map((r, idx) => (idx === i ? { ...r, [field]: Number(value) } : r))
         );
 
+    /**
+     * @description Gibt eine textuelle Einschätzung des Resilienzwertes zurück.
+     */
     const getRmLabel = (rm) => {
         if (vTarget === "" || vBase === "" || vTargetN === vBaseN) return "—";
         if (rm >= 1) return "Voll stabil";
@@ -102,6 +131,9 @@ export default function MaßnahmePage() {
         return "Nicht nachhaltig";
     };
 
+    /**
+     * @description Setzt alle Formularfelder auf ihre Ausgangswerte zurück.
+     */
     const resetForm = () => {
         setName("");
         setBeschreibung("");
@@ -113,6 +145,12 @@ export default function MaßnahmePage() {
     };
 
     // ── Submit ────────────────────────────────────────────────
+
+    /**
+     * @description Verarbeitet das Absenden des Formulars.
+     * Baut FormData auf, ruft die Server Action auf und leitet bei Erfolg zur Gewichtungsseite weiter.
+     * Bei Fehler wird eine Rückmeldung im UI angezeigt.
+     */
     const handleSubmit = async (e) => {
         e.preventDefault();
         setSaving(true);
@@ -121,20 +159,21 @@ export default function MaßnahmePage() {
         // FormData bauen — Keys müssen exakt den Kriterien-Namen entsprechen
         // die createMeasureWithRating per formData.get(critName) liest
         const formData = new FormData();
-        formData.set("name", name);
-        formData.set("beschreibung", beschreibung);
-        formData.set("status", "offen");
+        formData.set("name", name);                  // Pflichtfeld: Name der Maßnahme
+        formData.set("beschreibung", beschreibung);  // Optional: Freitext-Beschreibung
+        formData.set("status", "offen");             // Fester Startstatus für neue Maßnahmen
 
         // Kriterien-Werte — Namen exakt wie in requiredCriteria in der Action
-        formData.set("Sauberkeit",       sauberkeit.toFixed(4));
-        formData.set("Sicherheit",       String(risikoGesamtwert));
-        formData.set("Soziale Akzeptanz", akzeptanzWert.toFixed(4));
-        formData.set("Nachhaltigkeit",   Rm.toFixed(4));
-        formData.set("Kosten",           Re.toFixed(6));
+        formData.set("Sauberkeit",        sauberkeit.toFixed(4));       // Anteil erfüllter Checkboxen (0–1)
+        formData.set("Sicherheit",        String(risikoGesamtwert));    // Summe aller Wahrscheinlichkeit × Effekt aus der Risikomatrix
+        formData.set("Soziale Akzeptanz", akzeptanzWert.toFixed(4));    // Slider-Wert umgerechnet auf 0–1
+        formData.set("Nachhaltigkeit",    Rm.toFixed(4));               // Resilienzwert Rm = (Vnow - Vbase) / (Vtarget - Vbase)
+        formData.set("Kosten",            Re.toFixed(6));               // Effizienzwert Re = ΔS / C
 
         const result = await createMeasureWithRating(formData);
 
         if (result?.success) {
+            // Maßnahmendaten für die Gewichtungsseite zwischenspeichern
             sessionStorage.setItem("massnahme_daten", JSON.stringify({
                 name,
                 Sauberkeit: sauberkeit.toFixed(4),
