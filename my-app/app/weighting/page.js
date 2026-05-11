@@ -1,3 +1,8 @@
+/**
+ * @author Milenko Pekez
+ * @description Seite zur AHP-basierten Gewichtung der Kriterien und Berechnung des Gesamtscores.
+ */
+
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
@@ -13,115 +18,145 @@ const KRITERIEN = [
 
 // ── AHP-Hilfsfunktionen ──────────────────────────────────────
 
-function erstelleLeereAHPMatrix(n) {
-    return Array.from({ length: n }, () => Array(n).fill(1));
+/**
+ * @description Erstellt eine leere AHP-Vergleichsmatrix der Größe n×n (alle Werte = 1).
+ */
+function erstelleLeereAHPMatrix(anzahlKriterien) {
+    return Array.from({ length: anzahlKriterien }, () => Array(anzahlKriterien).fill(1));
 }
 
-function setzeVergleich(matrix, i, j, wert) {
-    const neu = matrix.map((row) => [...row]);
-    neu[i][j] = wert;
-    neu[j][i] = 1 / wert;
-    return neu;
+/**
+ * @description Setzt einen paarweisen Vergleich in der Matrix und aktualisiert den reziproken Wert.
+ */
+function setzeVergleich(matrix, zeilenIndex, spaltenIndex, vergleichswert) {
+    const aktualisierteMatrix = matrix.map((zeile) => [...zeile]);
+    aktualisierteMatrix[zeilenIndex][spaltenIndex] = vergleichswert;
+    aktualisierteMatrix[spaltenIndex][zeilenIndex] = 1 / vergleichswert;
+    return aktualisierteMatrix;
 }
 
-function generiereVergleichsPaare(n) {
+/**
+ * @description Generiert alle paarweisen Vergleichspaare für n Kriterien.
+ */
+function generiereVergleichsPaare(anzahlKriterien) {
     const paare = [];
-    for (let i = 0; i < n; i++)
-        for (let j = i + 1; j < n; j++)
+    for (let i = 0; i < anzahlKriterien; i++)
+        for (let j = i + 1; j < anzahlKriterien; j++)
             paare.push({ i, j });
     return paare;
 }
 
+/**
+ * @description Berechnet die normalisierten AHP-Gewichte über das geometrische Mittel.
+ */
 function berechneAHPGewichte(matrix) {
-    const n = matrix.length;
-    const geoMittel = matrix.map((row) => {
-        const produkt = row.reduce((p, v) => p * v, 1);
-        return Math.pow(produkt, 1 / n);
+    const anzahlKriterien = matrix.length;
+    const geometrischeMittelwerte = matrix.map((zeile) => {
+        const produkt = zeile.reduce((akkumulator, wert) => akkumulator * wert, 1);
+        return Math.pow(produkt, 1 / anzahlKriterien);
     });
-    const summe = geoMittel.reduce((s, v) => s + v, 0);
-    return geoMittel.map((v) => v / summe);
+    const summe = geometrischeMittelwerte.reduce((akkumulator, wert) => akkumulator + wert, 0);
+    return geometrischeMittelwerte.map((wert) => wert / summe);
 }
 
+/**
+ * @description Prüft die Konsistenz einer AHP-Matrix anhand des Consistency Ratio (CR).
+ */
 function pruefeKonsistenz(matrix, gewichte) {
-    const n = matrix.length;
-    const RI = [0, 0, 0.58, 0.9, 1.12, 1.24, 1.32, 1.41, 1.45, 1.49];
+    const anzahlKriterien = matrix.length;
+    const zufallsKonsistenzIndex = [0, 0, 0.58, 0.9, 1.12, 1.24, 1.32, 1.41, 1.45, 1.49];
 
-    const lambdaVec = matrix.map((row, i) => {
-        const ws = row.reduce((s, v, j) => s + v * gewichte[j], 0);
-        return ws / gewichte[i];
+    const lambdaVektor = matrix.map((zeile, i) => {
+        const gewichteterZeilenwert = zeile.reduce((akkumulator, wert, j) => akkumulator + wert * gewichte[j], 0);
+        return gewichteterZeilenwert / gewichte[i];
     });
-    const lambdaMax = lambdaVec.reduce((s, v) => s + v, 0) / n;
+    const lambdaMaximum = lambdaVektor.reduce((akkumulator, wert) => akkumulator + wert, 0) / anzahlKriterien;
 
-    const CI = (lambdaMax - n) / (n - 1);
-    const CR = n <= 2 ? 0 : CI / RI[n - 1];
+    const konsistenzIndex = (lambdaMaximum - anzahlKriterien) / (anzahlKriterien - 1);
+    const konsistenzRatio = anzahlKriterien <= 2 ? 0 : konsistenzIndex / zufallsKonsistenzIndex[anzahlKriterien - 1];
 
     return {
-        lambdaMax: Number(lambdaMax.toFixed(4)),
-        CI: Number(CI.toFixed(4)),
-        CR: Number(CR.toFixed(4)),
-        konsistent: CR < 0.1,
+        lambdaMaximum: Number(lambdaMaximum.toFixed(4)),
+        konsistenzIndex: Number(konsistenzIndex.toFixed(4)),
+        konsistenzRatio: Number(konsistenzRatio.toFixed(4)),
+        konsistent: konsistenzRatio < 0.1,
     };
 }
 
-// Slider-Wert (-8…8) → Saaty-Skala (1/9…9)
-function sliderToSaaty(val) {
-    if (val === 0) return 1;
-    if (val > 0) return val + 1;
-    return 1 / (-val + 1);
+/**
+ * @description Konvertiert einen Slider-Wert (-8…8) in einen Saaty-Skalenwert (1/9…9).
+ */
+function konvertiereSliderZuSaaty(sliderWert) {
+    if (sliderWert === 0) return 1;
+    if (sliderWert > 0) return sliderWert + 1;
+    return 1 / (-sliderWert + 1);
 }
 
-function sliderLabel(val) {
-    const s = sliderToSaaty(val);
-    if (val === 0) return "gleich wichtig (1)";
-    if (val > 0) return `linkes Kriterium bevorzugt (${s.toFixed(2)}×)`;
-    return `rechtes Kriterium bevorzugt (${s.toFixed(2)}×)`;
+/**
+ * @description Erstellt eine lesbare Beschriftung für einen Slider-Wert auf der Saaty-Skala.
+ */
+function erstelleSliderBeschriftung(sliderWert) {
+    const saatyWert = konvertiereSliderZuSaaty(sliderWert);
+    if (sliderWert === 0) return "gleich wichtig (1)";
+    if (sliderWert > 0) return `linkes Kriterium bevorzugt (${saatyWert.toFixed(2)}×)`;
+    return `rechtes Kriterium bevorzugt (${saatyWert.toFixed(2)}×)`;
 }
 
 // ── Komponente ───────────────────────────────────────────────
 
-const n = KRITERIEN.length;
-const PAARE = generiereVergleichsPaare(n);
+const anzahlKriterien = KRITERIEN.length;
+const PAARE = generiereVergleichsPaare(anzahlKriterien);
 
+/**
+ * @description Hauptkomponente der Gewichtungsseite.
+ * Verwaltet die AHP-Matrix, berechnet Gewichte und zeigt den gewichteten Gesamtscore an.
+ */
 export default function WeightingPage() {
-    const [sliderValues, setSliderValues] = useState(PAARE.map(() => 0));
-    const [matrix, setMatrix]             = useState(erstelleLeereAHPMatrix(n));
-    const [gewichte, setGewichte]         = useState(null);
-    const [konsistenz, setKonsistenz]     = useState(null);
-    const [massnahmeDaten, setMassnahmeDaten] = useState(null);
+    const [sliderWerte, setSliderWerte] = useState(PAARE.map(() => 0));
+    const [matrix, setMatrix]                     = useState(erstelleLeereAHPMatrix(anzahlKriterien));
+    const [gewichte, setGewichte]                 = useState(null);
+    const [konsistenz, setKonsistenz]             = useState(null);
+    const [massnahmeDaten, setMassnahmeDaten]     = useState(null);
 
     // Maßnahmen-Daten aus sessionStorage lesen
     useEffect(() => {
-        const raw = sessionStorage.getItem("massnahme_daten");
-        if (raw) {
-            try { setMassnahmeDaten(JSON.parse(raw)); } catch (_) {}
+        const gespeicherteDatenJson = sessionStorage.getItem("massnahme_daten");
+        if (gespeicherteDatenJson) {
+            try { setMassnahmeDaten(JSON.parse(gespeicherteDatenJson)); } catch (_) {}
         }
     }, []);
 
-    const berechneErgebnisse = useCallback((m) => {
-        const g = berechneAHPGewichte(m);
-        const k = pruefeKonsistenz(m, g);
-        setGewichte(g);
-        setKonsistenz(k);
+    /**
+     * @description Berechnet Gewichte und Konsistenz für eine gegebene AHP-Matrix und aktualisiert den State.
+     */
+    const berechneErgebnisse = useCallback((ahpMatrix) => {
+        const berechneteGewichte = berechneAHPGewichte(ahpMatrix);
+        const konsistenzErgebnis = pruefeKonsistenz(ahpMatrix, berechneteGewichte);
+        setGewichte(berechneteGewichte);
+        setKonsistenz(konsistenzErgebnis);
     }, []);
 
     // Initialberechnung (alle Slider auf 0 → Einheitsmatrix)
     useEffect(() => { berechneErgebnisse(matrix); }, []);   // eslint-disable-line
 
-    const handleSlider = (idx, raw) => {
-        const val = parseInt(raw);
-        const neueSliders = sliderValues.map((v, i) => i === idx ? val : v);
-        setSliderValues(neueSliders);
+    /**
+     * @description Verarbeitet eine Slider-Änderung, aktualisiert Matrix und berechnet neue Gewichte.
+     */
+    const handleSliderAenderung = (paarIndex, neuerSliderWert) => {
+        const sliderWert = parseInt(neuerSliderWert);
+        const aktualisierteSliderWerte = sliderWerte.map((wert, i) => i === paarIndex ? sliderWert : wert);
+        setSliderWerte(aktualisierteSliderWerte);
 
-        const neueMatrix = setzeVergleich(matrix, PAARE[idx].i, PAARE[idx].j, sliderToSaaty(val));
-        setMatrix(neueMatrix);
-        berechneErgebnisse(neueMatrix);
+        const aktualisierteMatrix = setzeVergleich(matrix, PAARE[paarIndex].i, PAARE[paarIndex].j, konvertiereSliderZuSaaty(sliderWert));
+        setMatrix(aktualisierteMatrix);
+        berechneErgebnisse(aktualisierteMatrix);
     };
 
     // Gewichteten Gesamtscore berechnen (wenn Maßnahmen-Daten vorhanden)
-    const gesamtScore = gewichte && massnahmeDaten
-        ? KRITERIEN.reduce((sum, k, i) => {
-            const wert = parseFloat(massnahmeDaten[k.name] ?? 0);
-            return sum + gewichte[i] * wert;
+    const gewichteterGesamtScore = gewichte && massnahmeDaten
+        ? KRITERIEN.reduce((summe, kriterium, i) => {
+            const rohBewertung = parseFloat(massnahmeDaten[kriterium.name] ?? 0);
+            return summe + gewichte[i] * rohBewertung;
           }, 0)
         : null;
 
@@ -156,8 +191,8 @@ export default function WeightingPage() {
                 <p style={{ color: "#555", fontSize: "0.9em", marginTop: 0 }}>
                     Schieben Sie jeden Slider, um anzugeben, welches Kriterium wichtiger ist.
                 </p>
-                {PAARE.map((paar, idx) => (
-                    <div key={idx} style={{
+                {PAARE.map((paar, paarIndex) => (
+                    <div key={paarIndex} style={{
                         marginBottom: 16,
                         padding: "12px 0",
                         borderBottom: "1px solid #eee",
@@ -171,12 +206,12 @@ export default function WeightingPage() {
                             min="-8"
                             max="8"
                             step="1"
-                            value={sliderValues[idx]}
-                            onChange={(e) => handleSlider(idx, e.target.value)}
+                            value={sliderWerte[paarIndex]}
+                            onChange={(e) => handleSliderAenderung(paarIndex, e.target.value)}
                             style={{ width: "100%", accentColor: "#0070f3" }}
                         />
                         <div style={{ textAlign: "center", fontSize: "0.88em", color: "#444", marginTop: 4 }}>
-                            {sliderLabel(sliderValues[idx])}
+                            {erstelleSliderBeschriftung(sliderWerte[paarIndex])}
                         </div>
                     </div>
                 ))}
@@ -191,14 +226,14 @@ export default function WeightingPage() {
                 {konsistenz && (
                     <div style={{ marginBottom: 16, padding: 12, background: "#f5f5f5", borderRadius: 4 }}>
                         <p style={{ margin: "0 0 4px" }}>
-                            <strong>Consistency Ratio (CR):</strong> {konsistenz.CR.toFixed(4)}
+                            <strong>Consistency Ratio (CR):</strong> {konsistenz.konsistenzRatio.toFixed(4)}
                             &nbsp;
                             <span style={{ color: konsistenz.konsistent ? "green" : "red", fontWeight: "bold" }}>
                                 {konsistenz.konsistent ? "✓ Konsistent" : "✗ Inkonsistent (bitte korrigieren)"}
                             </span>
                         </p>
                         <p style={{ margin: 0, fontSize: "0.85em", color: "#666" }}>
-                            λ<sub>max</sub> = {konsistenz.lambdaMax} &nbsp;|&nbsp; CI = {konsistenz.CI}
+                            λ<sub>max</sub> = {konsistenz.lambdaMaximum} &nbsp;|&nbsp; CI = {konsistenz.konsistenzIndex}
                         </p>
                     </div>
                 )}
@@ -215,12 +250,12 @@ export default function WeightingPage() {
                             </tr>
                         </thead>
                         <tbody>
-                            {KRITERIEN.map((k, i) => {
-                                const roh = massnahmeDaten ? parseFloat(massnahmeDaten[k.name] ?? 0) : null;
-                                const beitrag = roh !== null ? (gewichte[i] * roh) : null;
+                            {KRITERIEN.map((kriterium, i) => {
+                                const rohBewertung = massnahmeDaten ? parseFloat(massnahmeDaten[kriterium.name] ?? 0) : null;
+                                const gewichteterBeitrag = rohBewertung !== null ? (gewichte[i] * rohBewertung) : null;
                                 return (
-                                    <tr key={k.id}>
-                                        <td style={tdStyle}>{k.name}</td>
+                                    <tr key={kriterium.id}>
+                                        <td style={tdStyle}>{kriterium.name}</td>
                                         <td style={{ ...tdStyle, textAlign: "right" }}>{(gewichte[i] * 100).toFixed(1)}%</td>
                                         <td style={{ ...tdStyle, padding: "6px 10px" }}>
                                             <div style={{
@@ -232,26 +267,26 @@ export default function WeightingPage() {
                                         </td>
                                         {massnahmeDaten && (
                                             <td style={{ ...tdStyle, textAlign: "right" }}>
-                                                {roh !== null ? roh.toFixed(4) : "—"}
+                                                {rohBewertung !== null ? rohBewertung.toFixed(4) : "—"}
                                             </td>
                                         )}
                                         {massnahmeDaten && (
                                             <td style={{ ...tdStyle, textAlign: "right", fontWeight: "bold" }}>
-                                                {beitrag !== null ? beitrag.toFixed(4) : "—"}
+                                                {gewichteterBeitrag !== null ? gewichteterBeitrag.toFixed(4) : "—"}
                                             </td>
                                         )}
                                     </tr>
                                 );
                             })}
                         </tbody>
-                        {massnahmeDaten && gesamtScore !== null && (
+                        {massnahmeDaten && gewichteterGesamtScore !== null && (
                             <tfoot>
                                 <tr>
                                     <td colSpan={4} style={{ ...tdStyle, textAlign: "right", fontWeight: "bold" }}>
                                         Gesamtscore:
                                     </td>
                                     <td style={{ ...tdStyle, textAlign: "right", fontWeight: "bold", color: "#0070f3" }}>
-                                        {gesamtScore.toFixed(4)}
+                                        {gewichteterGesamtScore.toFixed(4)}
                                     </td>
                                 </tr>
                             </tfoot>

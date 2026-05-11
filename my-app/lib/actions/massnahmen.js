@@ -42,24 +42,24 @@ export async function createMeasureWithRating(formData) {
     // 1. Kriterien sicherstellen (Upsert-Logik)
     // Wir holen uns die IDs aller benötigten Kriterien
     const criteriaIds = {};
-    for (const critName of requiredCriteria) {
-      const critRes = await databaseClient.query(
-          `INSERT INTO kriterien (name) 
-         VALUES ($1) 
-         ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name 
+    for (const criterionName of requiredCriteria) {
+      const criterionUpsertResult = await databaseClient.query(
+          `INSERT INTO kriterien (name)
+         VALUES ($1)
+         ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
          RETURNING id`,
-          [critName]
+          [criterionName]
       );
       // Hinweis: Damit ON CONFLICT funktioniert, muss ein UNIQUE Constraint auf kriterien(name) liegen!
       // Falls kein Constraint existiert, nutzen wir eine SELECT/INSERT Logik:
       /*
-      let res = await databaseClient.query('SELECT id FROM kriterien WHERE name = $1', [critName]);
-      if (res.rows.length === 0) {
-        res = await databaseClient.query('INSERT INTO kriterien (name) VALUES ($1) RETURNING id', [critName]);
+      let ergebnis = await databaseClient.query('SELECT id FROM kriterien WHERE name = $1', [criterionName]);
+      if (ergebnis.rows.length === 0) {
+        ergebnis = await databaseClient.query('INSERT INTO kriterien (name) VALUES ($1) RETURNING id', [criterionName]);
       }
-      criteriaIds[critName] = res.rows[0].id;
+      criteriaIds[criterionName] = ergebnis.rows[0].id;
       */
-      criteriaIds[critName] = critRes.rows[0].id;
+      criteriaIds[criterionName] = criterionUpsertResult.rows[0].id;
     }
 
     // 2. Maßnahme erstellen
@@ -81,8 +81,8 @@ export async function createMeasureWithRating(formData) {
       VALUES ($1, $2, $3)
     `;
 
-    for (const critName of requiredCriteria) {
-      const rawValue = formData.get(critName); // Erwartet Input-Namen wie "Sauberkeit" im Formular
+    for (const criterionName of requiredCriteria) {
+      const rawValue = formData.get(criterionName); // Erwartet Input-Namen wie "Sauberkeit" im Formular
 
       // Nur speichern, wenn ein Wert vorhanden ist (Float oder leer ist okay laut Anforderung)
       if (rawValue !== null && rawValue !== '') {
@@ -90,7 +90,7 @@ export async function createMeasureWithRating(formData) {
 
         await databaseClient.query(insertRatingQuery, [
           createdMeasureId,
-          criteriaIds[critName],
+          criteriaIds[criterionName],
           isNaN(ratingValue) ? null : ratingValue,
         ]);
       }

@@ -32,20 +32,20 @@ const RISIKEN = [
 
 /**
  * @description Berechnet den Resilienzwert Rm einer Maßnahme.
- * Formel: Rm = (Vnow - Vbase) / (Vtarget - Vbase)
+ * Formel: Rm = (aktuellerWert - basiswert) / (zielwert - basiswert)
  */
-function berechneResilienz(vBase, vTarget, vNow) {
-    if (vTarget === vBase) return 0;
-    return (vNow - vBase) / (vTarget - vBase);
+function berechneResilienz(basiswert, zielwert, aktuellerWert) {
+    if (zielwert === basiswert) return 0;
+    return (aktuellerWert - basiswert) / (zielwert - basiswert);
 }
 
 /**
  * @description Berechnet den Effizienzwert Re einer Maßnahme.
- * Formel: Re = ΔS / C — höher bedeutet effizienter (mehr Verbesserung pro €)
+ * Formel: Re = scoreDelta / gesamtkosten — höher bedeutet effizienter (mehr Verbesserung pro €)
  */
-function berechneEffizienz(kosten, deltaS) {
-    if (kosten === 0) return 0;
-    return deltaS / kosten;
+function berechneEffizienz(gesamtkosten, scoreDelta) {
+    if (gesamtkosten === 0) return 0;
+    return scoreDelta / gesamtkosten;
 }
 
 /**
@@ -58,7 +58,7 @@ export default function MaßnahmePage() {
     const [beschreibung, setBeschreibung] = useState("");
 
     // Sauberkeit (id_kriterium → "Sauberkeit")
-    const [sicherheit, setSicherheit] = useState(Array(8).fill(false));
+    const [sauberkeitsCheckboxen, setSauberkeitsCheckboxen] = useState(Array(8).fill(false));
 
     // Soziale Akzeptanz (id_kriterium → "Soziale Akzeptanz")
     const [sozialeAkzeptanz, setSozialeAkzeptanz] = useState(50);
@@ -69,21 +69,21 @@ export default function MaßnahmePage() {
     );
 
     // Nachhaltigkeit (id_kriterium → "Nachhaltigkeit")
-    const [vBase, setVBase] = useState("");
-    const [vTarget, setVTarget] = useState("");
-    const [vNow, setVNow] = useState("");
+    const [basiswert, setBasiswert] = useState("");
+    const [zielwert, setZielwert] = useState("");
+    const [aktuellerWert, setAktuellerWert] = useState("");
 
     // Kosten (id_kriterium → "Kosten")
     const [kosten, setKosten] = useState("");
-    const [deltaS, setDeltaS] = useState("");
+    const [scoreDelta, setScoreDelta] = useState("");
 
     // UI
-    const [saving, setSaving] = useState(false);
+    const [wirdGespeichert, setWirdGespeichert] = useState(false);
     const [feedback, setFeedback] = useState(null);
 
     // ── Berechnungen ──────────────────────────────────────────
     // Sauberkeit: Checkboxen → 0–1
-    const sauberkeit = sicherheit.filter(Boolean).length / sicherheit.length;
+    const sauberkeit = sauberkeitsCheckboxen.filter(Boolean).length / sauberkeitsCheckboxen.length;
 
     // Soziale Akzeptanz: Slider → 0–1
     const akzeptanzWert = sozialeAkzeptanz / 100;
@@ -95,53 +95,53 @@ export default function MaßnahmePage() {
     );
 
     // Nachhaltigkeit: Rm
-    const vBaseN = parseFloat(vBase) || 0;
-    const vTargetN = parseFloat(vTarget) || 0;
-    const vNowN = parseFloat(vNow) || 0;
-    const Rm = berechneResilienz(vBaseN, vTargetN, vNowN);
+    const basiswertZahl = parseFloat(basiswert) || 0;
+    const zielwertZahl = parseFloat(zielwert) || 0;
+    const aktuellerWertZahl = parseFloat(aktuellerWert) || 0;
+    const resilienzWert = berechneResilienz(basiswertZahl, zielwertZahl, aktuellerWertZahl);
 
     // Kosten: Re
-    const kostenN = parseFloat(kosten) || 0;
-    const deltaSN = parseFloat(deltaS) || 0;
-    const Re = berechneEffizienz(kostenN, deltaSN);
+    const kostenZahl = parseFloat(kosten) || 0;
+    const scoreDeltaZahl = parseFloat(scoreDelta) || 0;
+    const effizienzWert = berechneEffizienz(kostenZahl, scoreDeltaZahl);
 
     // ── Helpers ───────────────────────────────────────────────
 
     /**
-     * @description Schaltet den Zustand einer Sicherheits-Checkbox um.
+     * @description Schaltet den Zustand einer Sauberkeits-Checkbox um.
      */
-    const toggleSicherheit = (i) =>
-        setSicherheit((prev) => prev.map((v, idx) => (idx === i ? !v : v)));
+    const toggleSauberkeitsCheckbox = (checkboxIndex) =>
+        setSauberkeitsCheckboxen((prev) => prev.map((v, idx) => (idx === checkboxIndex ? !v : v)));
 
     /**
      * @description Aktualisiert einen Wert (Wahrscheinlichkeit oder Effekt) in der Risikomatrix.
      */
-    const updateRisiko = (i, field, value) =>
+    const aktualisiereRisikoeintrag = (risikoIndex, feldName, neuerWert) =>
         setRisikoMatrix((prev) =>
-            prev.map((r, idx) => (idx === i ? { ...r, [field]: Number(value) } : r))
+            prev.map((r, idx) => (idx === risikoIndex ? { ...r, [feldName]: Number(neuerWert) } : r))
         );
 
     /**
      * @description Gibt eine textuelle Einschätzung des Resilienzwertes zurück.
      */
-    const getRmLabel = (rm) => {
-        if (vTarget === "" || vBase === "" || vTargetN === vBaseN) return "—";
-        if (rm >= 1) return "Voll stabil";
-        if (rm >= 0.5) return "Bedingt nachhaltig";
+    const erstelleResilienzBeschriftung = (resilienz) => {
+        if (zielwert === "" || basiswert === "" || zielwertZahl === basiswertZahl) return "—";
+        if (resilienz >= 1) return "Voll stabil";
+        if (resilienz >= 0.5) return "Bedingt nachhaltig";
         return "Nicht nachhaltig";
     };
 
     /**
      * @description Setzt alle Formularfelder auf ihre Ausgangswerte zurück.
      */
-    const resetForm = () => {
+    const setzteFormularZurueck = () => {
         setName("");
         setBeschreibung("");
-        setSicherheit(Array(8).fill(false));
+        setSauberkeitsCheckboxen(Array(8).fill(false));
         setSozialeAkzeptanz(50);
         setRisikoMatrix(RISIKEN.map(() => ({ wahrscheinlichkeit: 1, effekt: 1 })));
-        setVBase(""); setVTarget(""); setVNow("");
-        setKosten(""); setDeltaS("");
+        setBasiswert(""); setZielwert(""); setAktuellerWert("");
+        setKosten(""); setScoreDelta("");
     };
 
     // ── Submit ────────────────────────────────────────────────
@@ -151,9 +151,9 @@ export default function MaßnahmePage() {
      * Baut FormData auf, ruft die Server Action auf und leitet bei Erfolg zur Gewichtungsseite weiter.
      * Bei Fehler wird eine Rückmeldung im UI angezeigt.
      */
-    const handleSubmit = async (e) => {
+    const handleFormularAbsenden = async (e) => {
         e.preventDefault();
-        setSaving(true);
+        setWirdGespeichert(true);
         setFeedback(null);
 
         // FormData bauen — Keys müssen exakt den Kriterien-Namen entsprechen
@@ -164,31 +164,31 @@ export default function MaßnahmePage() {
         formData.set("status", "offen");             // Fester Startstatus für neue Maßnahmen
 
         // Kriterien-Werte — Namen exakt wie in requiredCriteria in der Action
-        formData.set("Sauberkeit",        sauberkeit.toFixed(4));       // Anteil erfüllter Checkboxen (0–1)
-        formData.set("Sicherheit",        String(risikoGesamtwert));    // Summe aller Wahrscheinlichkeit × Effekt aus der Risikomatrix
-        formData.set("Soziale Akzeptanz", akzeptanzWert.toFixed(4));    // Slider-Wert umgerechnet auf 0–1
-        formData.set("Nachhaltigkeit",    Rm.toFixed(4));               // Resilienzwert Rm = (Vnow - Vbase) / (Vtarget - Vbase)
-        formData.set("Kosten",            Re.toFixed(6));               // Effizienzwert Re = ΔS / C
+        formData.set("Sauberkeit",        sauberkeit.toFixed(4));          // Anteil erfüllter Checkboxen (0–1)
+        formData.set("Sicherheit",        String(risikoGesamtwert));       // Summe aller Wahrscheinlichkeit × Effekt aus der Risikomatrix
+        formData.set("Soziale Akzeptanz", akzeptanzWert.toFixed(4));       // Slider-Wert umgerechnet auf 0–1
+        formData.set("Nachhaltigkeit",    resilienzWert.toFixed(4));       // Resilienzwert Rm = (aktuellerWert - basiswert) / (zielwert - basiswert)
+        formData.set("Kosten",            effizienzWert.toFixed(6));       // Effizienzwert Re = scoreDelta / gesamtkosten
 
-        const result = await createMeasureWithRating(formData);
+        const serverErgebnis = await createMeasureWithRating(formData);
 
-        if (result?.success) {
+        if (serverErgebnis?.success) {
             // Maßnahmendaten für die Gewichtungsseite zwischenspeichern
             sessionStorage.setItem("massnahme_daten", JSON.stringify({
                 name,
                 Sauberkeit: sauberkeit.toFixed(4),
                 Sicherheit: String(risikoGesamtwert),
                 "Soziale Akzeptanz": akzeptanzWert.toFixed(4),
-                Nachhaltigkeit: Rm.toFixed(4),
-                Kosten: Re.toFixed(6),
+                Nachhaltigkeit: resilienzWert.toFixed(4),
+                Kosten: effizienzWert.toFixed(6),
             }));
             router.push("/weighting");
             return;
         } else {
-            setFeedback({ type: "error", message: result?.error ?? "Unbekannter Fehler." });
+            setFeedback({ type: "error", message: serverErgebnis?.error ?? "Unbekannter Fehler." });
         }
 
-        setSaving(false);
+        setWirdGespeichert(false);
     };
 
     // ── Render ────────────────────────────────────────────────
@@ -209,7 +209,7 @@ export default function MaßnahmePage() {
                 </div>
             )}
 
-            <form onSubmit={handleSubmit}>
+            <form onSubmit={handleFormularAbsenden}>
 
                 {/* ── Name ── */}
                 <section>
@@ -241,7 +241,7 @@ export default function MaßnahmePage() {
                     <h2>
                         Sauberkeit{" "}
                         <span style={{ fontWeight: "normal", fontSize: "0.9em" }}>
-              ({sicherheit.filter(Boolean).length}/{sicherheit.length} ={" "}
+              ({sauberkeitsCheckboxen.filter(Boolean).length}/{sauberkeitsCheckboxen.length} ={" "}
                             {(sauberkeit * 100).toFixed(0)}% → {sauberkeit.toFixed(2)})
             </span>
                     </h2>
@@ -252,8 +252,8 @@ export default function MaßnahmePage() {
                         >
                             <input
                                 type="checkbox"
-                                checked={sicherheit[i]}
-                                onChange={() => toggleSicherheit(i)}
+                                checked={sauberkeitsCheckboxen[i]}
+                                onChange={() => toggleSauberkeitsCheckbox(i)}
                             />
                             {frage}
                         </label>
@@ -300,23 +300,23 @@ export default function MaßnahmePage() {
                         </thead>
                         <tbody>
                         {RISIKEN.map((risiko, i) => {
-                            const row = risikoMatrix[i];
-                            const produkt = row.wahrscheinlichkeit * row.effekt;
+                            const risikoEintrag = risikoMatrix[i];
+                            const produkt = risikoEintrag.wahrscheinlichkeit * risikoEintrag.effekt;
                             return (
                                 <tr key={i}>
                                     <td style={tdStyle}>{risiko}</td>
                                     <td style={tdStyle}>
                                         <select
-                                            value={row.wahrscheinlichkeit}
-                                            onChange={(e) => updateRisiko(i, "wahrscheinlichkeit", e.target.value)}
+                                            value={risikoEintrag.wahrscheinlichkeit}
+                                            onChange={(e) => aktualisiereRisikoeintrag(i, "wahrscheinlichkeit", e.target.value)}
                                         >
                                             {[1,2,3,4,5].map((v) => <option key={v} value={v}>{v}</option>)}
                                         </select>
                                     </td>
                                     <td style={tdStyle}>
                                         <select
-                                            value={row.effekt}
-                                            onChange={(e) => updateRisiko(i, "effekt", e.target.value)}
+                                            value={risikoEintrag.effekt}
+                                            onChange={(e) => aktualisiereRisikoeintrag(i, "effekt", e.target.value)}
                                         >
                                             {[1,2,3,4,5].map((v) => <option key={v} value={v}>{v}</option>)}
                                         </select>
@@ -348,8 +348,8 @@ export default function MaßnahmePage() {
                             <div style={{ marginBottom: 4 }}>V<sub>base</sub> — vor Maßnahme</div>
                             <input
                                 type="number"
-                                value={vBase}
-                                onChange={(e) => setVBase(e.target.value)}
+                                value={basiswert}
+                                onChange={(e) => setBasiswert(e.target.value)}
                                 placeholder="z.B. 30"
                                 style={{ width: "100%", padding: "6px", boxSizing: "border-box" }}
                             />
@@ -358,8 +358,8 @@ export default function MaßnahmePage() {
                             <div style={{ marginBottom: 4 }}>V<sub>target</sub> — direkt nach Umsetzung</div>
                             <input
                                 type="number"
-                                value={vTarget}
-                                onChange={(e) => setVTarget(e.target.value)}
+                                value={zielwert}
+                                onChange={(e) => setZielwert(e.target.value)}
                                 placeholder="z.B. 80"
                                 style={{ width: "100%", padding: "6px", boxSizing: "border-box" }}
                             />
@@ -368,18 +368,18 @@ export default function MaßnahmePage() {
                             <div style={{ marginBottom: 4 }}>V<sub>now</sub> — nach Kontrollintervall</div>
                             <input
                                 type="number"
-                                value={vNow}
-                                onChange={(e) => setVNow(e.target.value)}
+                                value={aktuellerWert}
+                                onChange={(e) => setAktuellerWert(e.target.value)}
                                 placeholder="z.B. 65"
                                 style={{ width: "100%", padding: "6px", boxSizing: "border-box" }}
                             />
                         </label>
                     </div>
-                    {vTarget !== "" && vBase !== "" && (
+                    {zielwert !== "" && basiswert !== "" && (
                         <p style={{ marginTop: 8 }}>
-                            <strong>R<sub>m</sub> = {Rm.toFixed(4)}</strong>{" "}
-                            — {getRmLabel(Rm)}
-                            {vTargetN === vBaseN && (
+                            <strong>R<sub>m</sub> = {resilienzWert.toFixed(4)}</strong>{" "}
+                            — {erstelleResilienzBeschriftung(resilienzWert)}
+                            {zielwertZahl === basiswertZahl && (
                                 <span style={{ color: "red" }}> ⚠ Zielwert = Basiswert (wird als 0 gespeichert)</span>
                             )}
                         </p>
@@ -408,17 +408,17 @@ export default function MaßnahmePage() {
                             <div style={{ marginBottom: 4 }}>Score-Delta ΔS (Verbesserung in Prozentpunkten)</div>
                             <input
                                 type="number"
-                                value={deltaS}
-                                onChange={(e) => setDeltaS(e.target.value)}
+                                value={scoreDelta}
+                                onChange={(e) => setScoreDelta(e.target.value)}
                                 placeholder="z.B. 20"
                                 style={{ width: "100%", padding: "6px", boxSizing: "border-box" }}
                             />
                         </label>
                     </div>
-                    {kosten !== "" && deltaS !== "" && (
+                    {kosten !== "" && scoreDelta !== "" && (
                         <p style={{ marginTop: 8 }}>
-                            <strong>R<sub>e</sub> = {Re.toFixed(6)}</strong>
-                            {kostenN === 0 && (
+                            <strong>R<sub>e</sub> = {effizienzWert.toFixed(6)}</strong>
+                            {kostenZahl === 0 && (
                                 <span style={{ color: "red" }}> ⚠ Kosten = 0 (wird als 0 gespeichert)</span>
                             )}
                         </p>
@@ -429,14 +429,14 @@ export default function MaßnahmePage() {
                 <section style={{ marginTop: 32, marginBottom: 40 }}>
                     <button
                         type="submit"
-                        disabled={saving}
+                        disabled={wirdGespeichert}
                         style={{
                             padding: "10px 24px",
-                            cursor: saving ? "not-allowed" : "pointer",
-                            opacity: saving ? 0.6 : 1,
+                            cursor: wirdGespeichert ? "not-allowed" : "pointer",
+                            opacity: wirdGespeichert ? 0.6 : 1,
                         }}
                     >
-                        {saving ? "Wird gespeichert…" : "Maßnahme speichern"}
+                        {wirdGespeichert ? "Wird gespeichert…" : "Maßnahme speichern"}
                     </button>
                 </section>
 
