@@ -1,2 +1,29 @@
+# Abhängigkeiten
 node_modules/
+.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Next.js Build Output
+/my-app/.next/
+/my-app/out/
+/my-app/build/
+
+# IDEs (JetBrains, VS Code)
+.idea/
+*.iws
+*.iml
+*.ipr
+.vscode/
+
+# Umgebungsvariablen (KRITISCH!)
 .env
+*.env.local
+*.env.development.local
+*.env.test.local
+*.env.production.local
+
+# Betriebssystem-Dateien
+.DS_Store
