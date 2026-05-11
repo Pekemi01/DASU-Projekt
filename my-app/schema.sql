@@ -14,7 +14,7 @@ CREATE TABLE kriterien (
 CREATE TABLE massnahmen_bewertungen (
   id_massnahme  INTEGER NOT NULL,
   id_kriterium  INTEGER NOT NULL,
-  bewertung     SMALLINT CHECK (bewertung BETWEEN 1 AND 5),
+  bewertung     FLOAT  ,
 
   -- Composite Primary Key (beide Spalten zusammen = eindeutig)
   PRIMARY KEY (id_massnahme, id_kriterium),
