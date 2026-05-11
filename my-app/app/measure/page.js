@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { createMeasureWithRating } from "@/lib/actions/massnahmen.js";
 
 const SICHERHEITSFRAGEN = [
@@ -33,6 +34,7 @@ function berechneEffizienz(kosten, deltaS) {
 }
 
 export default function MaßnahmePage() {
+    const router = useRouter();
     const [name, setName] = useState("");
     const [beschreibung, setBeschreibung] = useState("");
 
@@ -133,8 +135,16 @@ export default function MaßnahmePage() {
         const result = await createMeasureWithRating(formData);
 
         if (result?.success) {
-            setFeedback({ type: "success", message: "Maßnahme erfolgreich gespeichert!" });
-            resetForm();
+            sessionStorage.setItem("massnahme_daten", JSON.stringify({
+                name,
+                Sauberkeit: sauberkeit.toFixed(4),
+                Sicherheit: String(risikoGesamtwert),
+                "Soziale Akzeptanz": akzeptanzWert.toFixed(4),
+                Nachhaltigkeit: Rm.toFixed(4),
+                Kosten: Re.toFixed(6),
+            }));
+            router.push("/weighting");
+            return;
         } else {
             setFeedback({ type: "error", message: result?.error ?? "Unbekannter Fehler." });
         }
