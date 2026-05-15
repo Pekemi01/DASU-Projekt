@@ -6,6 +6,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from 'next/link';
 
 // ── Kriterien ────────────────────────────────────────────────
 const KRITERIEN = [
@@ -162,6 +163,10 @@ export default function WeightingPage() {
 
     return (
         <main style={{ maxWidth: 800, margin: "40px auto", padding: "0 16px", fontFamily: "sans-serif" }}>
+            {/* Back Button*/}
+            <Link href="/criteria">
+                <button>← Zurück zur Kriterien Übersicht</button>
+            </Link>
             <h1>AHP Gewichtung</h1>
 
             {/* ── Maßnahmen-Zusammenfassung ── */}
@@ -294,18 +299,6 @@ export default function WeightingPage() {
                     </table>
                 )}
             </section>
-
-            {/* ── Navigation ── */}
-            <nav style={{ marginTop: 30, display: "flex", gap: 10 }}>
-                <button onClick={() => window.history.back()}>Zurück</button>
-                <button
-                    disabled={!konsistenz?.konsistent}
-                    onClick={() => alert("Weiter zu Schritt 3")}
-                    style={{ opacity: konsistenz?.konsistent ? 1 : 0.5 }}
-                >
-                    Weiter
-                </button>
-            </nav>
         </main>
     );
 }

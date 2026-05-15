@@ -1,38 +1,114 @@
+
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--gray-50);
+  color: var(--gray-800);
+  line-height: 1.6;
+}
+
+/* Layout */
+.app-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.app-header {
+  text-align: center;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 2px solid var(--blue-600);
+}
+
+.app-header h1 {
+  font-size: 28px;
+  color: var(--gray-900);
+  margin-bottom: 4px;
+}
+
+.app-header p {
+  color: var(--gray-500);
+  font-size: 15px;
+}
+
+/* Homepage Buttons */
 .startButton {
   width: 200px;
   height: 100px;
   font-size: 30px;
-}
-
-.rankingButton {
-  width: 400px;
-  height: 400px;
-  font-size: 50px;
-  background-color: #2319f0;
-  color: aliceblue;
-  position: relative;
-  top: 50px;
-  left: 10px;
-}
-
-.measureButton {
-  width: 400px;
-  height: 400px;
-  font-size: 50px;
-  background-color: #2319f0;
-  color: aliceblue;
-  position: relative;
-  top: 50px;
-  left: 150px;
+  margin-top: 20px;
 }
 
 .criteriaButton {
-  width: 400px;
-  height: 400px;
+  width: 300px;
+  height: 300px;
   font-size: 50px;
   background-color: #2319f0;
   color: aliceblue;
   position: relative;
   top: 50px;
-  left: 290px;
+  left: 0px;
 }
+
+.measureButton {
+  width: 300px;
+  height: 300px;
+  font-size: 50px;
+  background-color: #2319f0;
+  color: aliceblue;
+  position: relative;
+  top: 50px;
+  left: 80px;
+}
+
+.rankingButton {
+  width: 300px;
+  height: 300px;
+  font-size: 50px;
+  background-color: #2319f0;
+  color: aliceblue;
+  position: relative;
+  top: 50px;
+  left: 160px;
+}
+
+/* Maßnahmen Spalten*/
+.list {
+    flex-direction: column;
+}
+
+.row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 15px;
+}
+
+.info {
+    display: flex;
+    flex-direction: column;
+}
+
+.name {
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.beschreibung {
+    margin-left: 20px;
+    color: gray;
+    font-size: 14px;
+}
+
+.gewicht{
+  color: gray;
+  font-size: 14px;
+}
+
+.icons {
+    display: flex;
+    gap: 15px;
+}
+
+

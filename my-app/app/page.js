@@ -8,17 +8,17 @@ function Header({ title }) {
 export default function HomePage() {
 
     return (
-        <div>
+        <div className='app-container'>
             <Header title="DASU - Scoring Web App" />
 
-            <text>
-                <li>Willkommen in der Web App des DASU-Teamprojekts.</li>
-                <li>Hier können die verschiedenen Maßnahmen am Lederhof gegeneinander abgewogen werden.</li>
-                <li>Um zu starten, klicken Sie bitte auf "Start".</li>
-            </text>
+            <div>
+                Willkommen in der Web App des DASU-Teamprojekts.
+                Hier können die verschiedenen Maßnahmen am Lederhof gegeneinander abgewogen werden.
+                Um zu starten, klicken Sie bitte auf "Start".
+            </div>
 
             <Link href="/home">
-                <button className="startButton">Start</button>
+                <button className="startButton">Start →</button>
             </Link>
         </div>
     );
