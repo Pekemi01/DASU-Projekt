@@ -108,6 +108,104 @@ export async function createMeasureWithRating(formData) {
     databaseClient.release();
   }
 }
+
+/**
+ * @author Milenko
+ * @param measureId
+ * @param formData
+ * @returns {Promise<{success: boolean}|{error: *}>}
+ */
+/**
+ * @description Speichert erstmalig die Bewertungen einer Maßnahme (INSERT only).
+ * Zusätzlich werden die Rohwerte der Eingabefelder als JSON in massnahmen.raw_inputs abgelegt,
+ * damit das Edit-Formular später vollständig vorausgefüllt werden kann.
+ * @param {number} measureId - ID der zu bewertenden Maßnahme
+ * @param {FormData} formData - Berechnete Kriterien-Scores + raw_inputs (JSON-String)
+ */
+export async function updateMeasureRatings(measureId, formData) {
+  const databaseClient = await databasePool.connect();
+  try {
+    await databaseClient.query('BEGIN');
+
+    const requiredCriteria = ['Sauberkeit', 'Nachhaltigkeit', 'Sicherheit', 'Kosten', 'Soziale Akzeptanz'];
+
+    for (const criterionName of requiredCriteria) {
+      const rawValue = formData.get(criterionName);
+      if (rawValue === null || rawValue === '') continue;
+
+      const ratingValue = parseFloat(rawValue.replace(',', '.'));
+
+      await databaseClient.query(`
+                INSERT INTO massnahmen_bewertungen (id_massnahme, id_kriterium, bewertung)
+                VALUES ($1, (SELECT id FROM kriterien WHERE name = $2), $3)
+            `, [measureId, criterionName, isNaN(ratingValue) ? null : ratingValue]);
+    }
+
+    const rawInputsJson = formData.get('raw_inputs');
+    if (rawInputsJson) {
+      await databaseClient.query(
+        `UPDATE massnahmen SET raw_inputs = $1 WHERE id = $2`,
+        [rawInputsJson, measureId]
+      );
+    }
+
+    await databaseClient.query('COMMIT');
+    revalidatePath('/measure');
+    return { success: true };
+  } catch (e) {
+    await databaseClient.query('ROLLBACK');
+    return { error: e.message };
+  } finally {
+    databaseClient.release();
+  }
+}
+/**
+ * @description Aktualisiert bestehende Bewertungen einer Maßnahme (UPSERT).
+ * Überschreibt vorhandene Einträge in massnahmen_bewertungen und aktualisiert
+ * gleichzeitig die gespeicherten Rohwerte in massnahmen.raw_inputs.
+ * @param {number} measureId - ID der zu bearbeitenden Maßnahme
+ * @param {FormData} formData - Berechnete Kriterien-Scores + raw_inputs (JSON-String)
+ */
+export async function editMeasureRatings(measureId, formData) {
+  const databaseClient = await databasePool.connect();
+  try {
+    await databaseClient.query('BEGIN');
+
+    const requiredCriteria = ['Sauberkeit', 'Nachhaltigkeit', 'Sicherheit', 'Kosten', 'Soziale Akzeptanz'];
+
+    for (const criterionName of requiredCriteria) {
+      const rawValue = formData.get(criterionName);
+      if (rawValue === null || rawValue === '') continue;
+
+      const ratingValue = parseFloat(rawValue.replace(',', '.'));
+
+      await databaseClient.query(`
+                INSERT INTO massnahmen_bewertungen (id_massnahme, id_kriterium, bewertung)
+                VALUES ($1, (SELECT id FROM kriterien WHERE name = $2), $3)
+                ON CONFLICT (id_massnahme, id_kriterium)
+                DO UPDATE SET bewertung = EXCLUDED.bewertung
+            `, [measureId, criterionName, isNaN(ratingValue) ? null : ratingValue]);
+    }
+
+    const rawInputsJson = formData.get('raw_inputs');
+    if (rawInputsJson) {
+      await databaseClient.query(
+        `UPDATE massnahmen SET raw_inputs = $1 WHERE id = $2`,
+        [rawInputsJson, measureId]
+      );
+    }
+
+    await databaseClient.query('COMMIT');
+    revalidatePath('/measure');
+    return { success: true };
+  } catch (e) {
+    await databaseClient.query('ROLLBACK');
+    return { error: e.message };
+  } finally {
+    databaseClient.release();
+  }
+}
+
 /**
  * @description Löscht eine Maßnahme.
  * Die zugehörigen Bewertungen werden durch CASCADE DELETE automatisch entfernt.
@@ -277,6 +375,26 @@ export async function getMeasureById(measureId) {
   }
 }
 
+/**@author Milenko
+ * @description Liefert alle Maßnahmen
+ * @returns {Promise<*[]|string|HTMLCollectionOf<HTMLTableRowElement>|number|SQLResultSetRowList>}
+ */
+  export async function getAllMeasures() {
+  const databaseClient = await databasePool.connect();
+  try {
+    const result = await databaseClient.query(
+        `SELECT id AS massnahme_id, name AS massnahme_name, beschreibung, status
+             FROM massnahmen
+             ORDER BY id DESC`
+    );
+    return result.rows;
+  } catch (e) {
+    console.error(e);
+    return [];
+  } finally {
+    databaseClient.release();
+  }
+}
 /**
  * @description Sucht Maßnahmen anhand des Namens (Teilsuche)
  * inklusive aller Bewertungen.

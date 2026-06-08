@@ -299,6 +299,18 @@ export default function WeightingPage() {
                     </table>
                 )}
             </section>
+
+            {/* ── Navigation ── */}
+            <nav style={{ marginTop: 30, display: "flex", gap: 10 }}>
+                <button onClick={() => window.history.back()}>Zurück</button>
+                <button
+                    disabled={!konsistenz?.konsistent}
+                    onClick={() => alert("Weiter zu Schritt 3")}
+                    style={{ opacity: konsistenz?.konsistent ? 1 : 0.5 }}
+                >
+                    Weiter
+                </button>
+            </nav>
         </main>
     );
 }

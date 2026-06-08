@@ -2,7 +2,8 @@ CREATE TABLE massnahmen (
   id           SERIAL PRIMARY KEY,
   name         VARCHAR(255) NOT NULL,
   beschreibung TEXT,
-  status       VARCHAR(50)
+  status       VARCHAR(50),
+  raw_inputs   JSONB
 );
 
 CREATE TABLE kriterien (

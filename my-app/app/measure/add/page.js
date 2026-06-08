@@ -2,15 +2,15 @@
 
 import Link from 'next/link';
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+
+import { createMeasureWithRating } from "lib/actions/massnahmen";
+import {getAllMeasureswithRatings} from "lib/actions/massnahmen";
 
 export default function AddMeasure(idx) {
-
     const [feedback, setFeedback] = useState(null);
-    const router = useRouter();
+    const [wirdGespeichert, setWirdGespeichert] = useState(false);
     const [name, setName] = useState("");
     const [beschreibung, setBeschreibung] = useState("");
-    // ── Submit ────────────────────────────────────────────────
     
     /**
      * @description Verarbeitet das Absenden des Formulars.
@@ -22,41 +22,23 @@ export default function AddMeasure(idx) {
         setWirdGespeichert(true);
         setFeedback(null);
 
-        // FormData bauen — Keys müssen exakt den Kriterien-Namen entsprechen
-        // die createMeasureWithRating per formData.get(critName) liest
         const formData = new FormData();
-        formData.set("name", name);                  // Pflichtfeld: Name der Maßnahme
-        formData.set("beschreibung", beschreibung);  // Optional: Freitext-Beschreibung
-        formData.set("status", "offen");             // Fester Startstatus für neue Maßnahmen
-
-        // Kriterien-Werte — Namen exakt wie in requiredCriteria in der Action
-        formData.set("Sauberkeit",        sauberkeit.toFixed(4));          // Anteil erfüllter Checkboxen (0–1)
-        formData.set("Sicherheit",        String(risikoGesamtwert));       // Summe aller Wahrscheinlichkeit × Effekt aus der Risikomatrix
-        formData.set("Soziale Akzeptanz", akzeptanzWert.toFixed(4));       // Slider-Wert umgerechnet auf 0–1
-        formData.set("Nachhaltigkeit",    resilienzWert.toFixed(4));       // Resilienzwert Rm = (aktuellerWert - basiswert) / (zielwert - basiswert)
-        formData.set("Kosten",            effizienzWert.toFixed(6));       // Effizienzwert Re = scoreDelta / gesamtkosten
+        formData.set("name", name);
+        formData.set("beschreibung", beschreibung);
+        formData.set("status", "offen");
 
         const serverErgebnis = await createMeasureWithRating(formData);
 
         if (serverErgebnis?.success) {
-            // Maßnahmendaten für die Gewichtungsseite zwischenspeichern
-            sessionStorage.setItem("massnahme_daten", JSON.stringify({
-                name,
-                Sauberkeit: sauberkeit.toFixed(4),
-                Sicherheit: String(risikoGesamtwert),
-                "Soziale Akzeptanz": akzeptanzWert.toFixed(4),
-                Nachhaltigkeit: resilienzWert.toFixed(4),
-                Kosten: effizienzWert.toFixed(6),
-            }));
-            router.push("/weighting");
-            return;
+            setFeedback({ type: "success", message: "Maßnahme erfolgreich gespeichert!" });
+            setName("");           // Felder leeren
+            setBeschreibung("");
         } else {
             setFeedback({ type: "error", message: serverErgebnis?.error ?? "Unbekannter Fehler." });
         }
 
         setWirdGespeichert(false);
     };
-
 
     return (
         <div className="app-container">
@@ -106,6 +88,9 @@ export default function AddMeasure(idx) {
                         style={{ width: "100%", padding: "6px", boxSizing: "border-box" }}
                     />
                 </section>
+                <button type="submit" disabled={wirdGespeichert} style={{ marginTop: 24 }}>
+                    {wirdGespeichert ? "Wird gespeichert..." : "Speichern"}
+                </button>
             </form>
         </div>    
     )
